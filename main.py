@@ -1,34 +1,34 @@
 import os
 import sys
-import traceback
 import json
+import traceback
 from telethon import TelegramClient, events, Button
 from telethon.sessions import StringSession
 
-def get_env(name):
+# ================= Helper =================
+def get_env(name, required=True):
     value = os.getenv(name)
-    if value is None:
-        print(f"❌ ERROR: Environment variable {name} is not set!")
+    if required and not value:
+        print(f"❌ ERROR: Environment variable '{name}' is not set!")
         sys.exit(1)
     return value
-# ================= CONFIG =================
-API_ID = int(os.getenv("API_ID"))
-API_HASH = os.getenv("API_HASH")
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-BOT_USERNAME = os.getenv("BOT_USERNAME")
-CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME")
-OWNER_IDS = list(map(int, os.getenv("OWNER_IDS").split(",")))
-MILESTONE = int(os.getenv("MILESTONE", "2"))
 
-# Persistent data paths
-DATA_DIR = os.getenv("DATA_DIR", "./data")  # Railway root folder
+# ================= CONFIG =================
+API_ID = int(get_env("API_ID"))
+API_HASH = get_env("API_HASH")
+BOT_TOKEN = get_env("BOT_TOKEN")
+BOT_USERNAME = get_env("BOT_USERNAME")
+CHANNEL_USERNAME = get_env("CHANNEL_USERNAME")
+OWNER_IDS = list(map(int, get_env("OWNER_IDS").split(",")))
+
+DATA_DIR = get_env("DATA_DIR", required=False) or "/data"
 os.makedirs(DATA_DIR, exist_ok=True)
 
 SESSION_FILE = os.path.join(DATA_DIR, "session.txt")
 DATA_FILE = os.path.join(DATA_DIR, "ref_data.json")
+MILESTONE = 2
 
-# ================== SETUP ==================
-# Load saved data
+# ================= Load Data =================
 try:
     with open(DATA_FILE, "r") as f:
         data = json.load(f)
@@ -41,7 +41,7 @@ def save_data():
 
 pending_checks = {}
 
-# ================= CLIENT =================
+# ================= Client =================
 try:
     if os.path.exists(SESSION_FILE):
         with open(SESSION_FILE, "r") as f:
@@ -58,7 +58,7 @@ except Exception:
 
 print("🤖 Bot initialized successfully!")
 
-# ========== /start handler ==========
+# ================= /start handler =================
 @client.on(events.NewMessage(pattern="/start"))
 async def start_handler(event):
     try:
@@ -78,8 +78,8 @@ async def start_handler(event):
         bot_username = BOT_USERNAME or (await client.get_me()).username
         referral_link = f"https://t.me/{bot_username}?start={user_id_str}"
         channel_link = f"https://t.me/{CHANNEL_USERNAME}" if not str(CHANNEL_USERNAME).startswith("-100") else f"https://t.me/c/{CHANNEL_USERNAME.replace('-100','')}"
-
         count = data["ref_counts"].get(user_id_str, 0)
+
         buttons = [[Button.inline("📈 إحالاتي", data=b"myrefs")]]
         if sender in OWNER_IDS:
             buttons.append([Button.inline("📊 لوحة المتصدرين", data=b"leaderboard")])
@@ -96,15 +96,10 @@ async def start_handler(event):
         print("🔥 Error in /start handler!")
         traceback.print_exc()
 
-# ================= Other Handlers =================
-# Add your callback query and channel join handlers here
-# Always call save_data() after modifying data
-
 # ================= Run Bot =================
 try:
     print("🤖 Bot is now running...")
     client.run_until_disconnected()
 except Exception:
     print("🔥 Bot crashed while running!")
-
     traceback.print_exc()
