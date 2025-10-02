@@ -5,6 +5,12 @@ import json
 from telethon import TelegramClient, events, Button
 from telethon.sessions import StringSession
 
+def get_env(name):
+    value = os.getenv(name)
+    if value is None:
+        print(f"❌ ERROR: Environment variable {name} is not set!")
+        sys.exit(1)
+    return value
 # ================= CONFIG =================
 API_ID = int(os.getenv("API_ID"))
 API_HASH = os.getenv("API_HASH")
@@ -100,4 +106,5 @@ try:
     client.run_until_disconnected()
 except Exception:
     print("🔥 Bot crashed while running!")
+
     traceback.print_exc()
