@@ -8,7 +8,7 @@ API_HASH = "625e043425a56fd0ae4e1f77e9098c3b"     # your api_hash
 BOT_TOKEN = "8491575607:AAEl2SYh7LSyYx1qq7xz4HV4CtrX45sChAM"   # token from @BotFather
 
 BOT_USERNAME = "MGreward_systembot"  # bot username, without @
-CHANNEL_USERNAME = "phoenixtrade9"  # channel username, without @ (or -100.. id for private)
+CHANNEL_USERNAME = "muneer_gove"  # channel username, without @ (or -100.. id for private)
 OWNER_IDS = [1719959197,921908800]               # your Telegram numeric user id
 
 DATA_FILE = "ref_data.json"
@@ -247,3 +247,4 @@ async def cb_back(event):
 # ========== Run Bot ==========
 print("🤖 Bot is running...")
 client.run_until_disconnected()
+
