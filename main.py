@@ -5,10 +5,6 @@ import traceback
 from telethon import TelegramClient, events, Button
 from telethon.sessions import StringSession
 
-
-print("DEBUG: Listing all environment variables...")
-for k, v in os.environ.items():
-    print(f"{k} = {v}")
 # ================= Helper =================
 def get_env(name, required=True):
     value = os.getenv(name)
@@ -16,10 +12,11 @@ def get_env(name, required=True):
         print(f"❌ ERROR: Environment variable '{name}' is not set!")
         sys.exit(1)
     return value
-print("🔹 ENV VARIABLES DEBUG:")
-print("API_ID:", os.getenv("API_ID"))
-print("API_HASH:", os.getenv("API_HASH"))
-print("BOT_TOKEN:", os.getenv("BOT_TOKEN"))
+
+print("DEBUG: Listing all environment variables...")
+for k, v in os.environ.items():
+    print(f"{k} = {v}")
+
 # ================= CONFIG =================
 API_ID = int(get_env("API_ID"))
 API_HASH = get_env("API_HASH")
@@ -33,18 +30,18 @@ os.makedirs(DATA_DIR, exist_ok=True)
 
 SESSION_FILE = os.path.join(DATA_DIR, "session.txt")
 DATA_FILE = os.path.join(DATA_DIR, "ref_data.json")
-MILESTONE = 2
+MILESTONE = int(get_env("MILESTONE", required=False) or 2)
 
 # ================= Load Data =================
 try:
-    with open(DATA_FILE, "r") as f:
+    with open(DATA_FILE, "r", encoding="utf-8") as f:
         data = json.load(f)
 except FileNotFoundError:
     data = {"referrals": {}, "ref_counts": {}, "rewarded": []}
 
 def save_data():
-    with open(DATA_FILE, "w") as f:
-        json.dump(data, f, indent=4)
+    with open(DATA_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=4, ensure_ascii=False)
 
 pending_checks = {}
 
@@ -103,12 +100,137 @@ async def start_handler(event):
         print("🔥 Error in /start handler!")
         traceback.print_exc()
 
-# ================= Run Bot =================
-try:
-    print("🤖 Bot is now running...")
-    client.run_until_disconnected()
-except Exception:
-    print("🔥 Bot crashed while running!")
-    traceback.print_exc()
+# ================= Channel join handler =================
+@client.on(events.ChatAction(chats=CHANNEL_USERNAME))
+async def channel_join_handler(event):
+    new_user_ids = []
 
+    if getattr(event, "user_id", None):
+        try:
+            new_user_ids.append(int(event.user_id))
+        except Exception:
+            pass
 
+    users_attr = getattr(event, "users", None)
+    if users_attr:
+        for u in users_attr:
+            try:
+                uid = int(u) if isinstance(u, (int, str)) else int(getattr(u, "id", None))
+                if uid:
+                    new_user_ids.append(uid)
+            except Exception:
+                pass
+
+    if not new_user_ids and getattr(event, "action_message", None):
+        try:
+            from_id = getattr(event.action_message.from_id, "user_id", None)
+            if from_id:
+                new_user_ids.append(int(from_id))
+        except Exception:
+            pass
+
+    if not new_user_ids:
+        return
+
+    for new_user_id in new_user_ids:
+        new_user_str = str(new_user_id)
+        for inviter_id_str, users_list in list(pending_checks.items()):
+            if new_user_str in users_list:
+                refs = data["referrals"].get(inviter_id_str, [])
+                if new_user_str not in refs:
+                    refs.append(new_user_str)
+                    data["referrals"][inviter_id_str] = refs
+                    data["ref_counts"][inviter_id_str] = len(refs)
+                    save_data()
+
+                    count = len(refs)
+                    try:
+                        await client.send_message(
+                            int(inviter_id_str),
+                            f"🎉 لقد انضم شخص إلى القناة باستخدام رابطك!\n"
+                            f"👥 إجمالي الدعوات: {count}"
+                        )
+                    except Exception:
+                        pass
+
+                    milestone_key = f"{inviter_id_str}_{MILESTONE}"
+                    if count >= MILESTONE and milestone_key not in data["rewarded"]:
+                        milestone_users = refs[-MILESTONE:]
+                        users_text = ""
+                        for i, uid in enumerate(milestone_users, start=1):
+                            try:
+                                user_entity = await client.get_entity(int(uid))
+                                if getattr(user_entity, "username", None):
+                                    name = f"@{user_entity.username}"
+                                else:
+                                    first = getattr(user_entity, "first_name", "") or ""
+                                    last = getattr(user_entity, "last_name", "") or ""
+                                    fullname = (first + " " + last).strip()
+                                    name = fullname if fullname else "User"
+                                users_text += f"{i}. {name} ({uid})\n"
+                            except Exception:
+                                users_text += f"{i}. User ({uid})\n"
+
+                        try:
+                            await client.send_message(
+                                int(inviter_id_str),
+                                f"🏆 مبروك! ربحت معنا اشتراك شهري هدية، تم إضافة {MILESTONE} أشخاص من خلال رابط إحالتك!\n\n"
+                                f"👥 الأعضاء الذين قمت بدعوتهم:\n{users_text}\n"
+                                f"📞 تواصل مع دعمنا: @harmonic_mg"
+                            )
+                        except Exception:
+                            pass
+
+                        data["rewarded"].append(milestone_key)
+                        save_data()
+
+                try:
+                    users_list.remove(new_user_str)
+                except ValueError:
+                    pass
+                if not users_list:
+                    pending_checks.pop(inviter_id_str, None)
+                else:
+                    pending_checks[inviter_id_str] = users_list
+                break
+
+# ================= Inline button handlers =================
+@client.on(events.CallbackQuery(data=b"myrefs"))
+async def cb_myrefs(event):
+    user_id_str = str(event.sender_id)
+    bot_username = BOT_USERNAME or (await client.get_me()).username
+    referral_link = f"https://t.me/{bot_username}?start={user_id_str}"
+    count = data["ref_counts"].get(user_id_str, 0)
+
+    await event.edit(
+        f"👥 لقد قمت بدعوة {count} الأعضاء!\n\n"
+        f"🔗 رابط إحالتك:\n{referral_link}",
+        buttons=[[Button.inline("⬅ العودة", data=b"back")]],
+        link_preview=False
+    )
+
+@client.on(events.CallbackQuery(data=b"leaderboard"))
+async def cb_leaderboard(event):
+    if event.sender_id not in OWNER_IDS:
+        await event.answer("⛔ فقط المالك يمكنه رؤية لوحة المتصدرين", alert=True)
+        return
+
+    if not data["ref_counts"]:
+        await event.edit("📊 لا توجد إحالات بعد.")
+        return
+
+    ranking = sorted(data["ref_counts"].items(), key=lambda x: x[1], reverse=True)[:10]
+    text = "🏆 لوحة المتصدرين للإحالات 🏆\n\n"
+    for i, (inviter, cnt) in enumerate(ranking, start=1):
+        try:
+            user = await client.get_entity(int(inviter))
+            name = f"@{user.username}" if getattr(user, "username", None) else (getattr(user, "first_name", "User") or "User")
+        except Exception:
+            name = f"User {inviter}"
+        text += f"{i}. {name} → {cnt} دعوات\n"
+
+    await event.edit(text, buttons=[[Button.inline("⬅ العودة", data=b"back")]], link_preview=False)
+
+@client.on(events.CallbackQuery(data=b"back"))
+async def cb_back(event):
+    user_id
