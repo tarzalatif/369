@@ -12,7 +12,7 @@ CHANNEL_USERNAME = "muneer_gove"  # channel username, without @ (or -100.. id fo
 OWNER_IDS = [1719959197,921908800]               # your Telegram numeric user id
 
 DATA_FILE = "ref_data.json"
-MILESTONE = 2  # milestone for reward (you can set back to 10 later)
+MILESTONE = 10  # milestone for reward (you can set back to 10 later)
 
 # ========== DATA STORAGE ==========
 try:
@@ -247,4 +247,5 @@ async def cb_back(event):
 # ========== Run Bot ==========
 print("🤖 Bot is running...")
 client.run_until_disconnected()
+
 
