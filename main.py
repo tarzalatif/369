@@ -5,6 +5,10 @@ import traceback
 from telethon import TelegramClient, events, Button
 from telethon.sessions import StringSession
 
+
+print("DEBUG: Listing all environment variables...")
+for k, v in os.environ.items():
+    print(f"{k} = {v}")
 # ================= Helper =================
 def get_env(name, required=True):
     value = os.getenv(name)
@@ -106,4 +110,5 @@ try:
 except Exception:
     print("🔥 Bot crashed while running!")
     traceback.print_exc()
+
 
