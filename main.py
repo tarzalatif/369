@@ -12,7 +12,10 @@ def get_env(name, required=True):
         print(f"❌ ERROR: Environment variable '{name}' is not set!")
         sys.exit(1)
     return value
-
+print("🔹 ENV VARIABLES DEBUG:")
+print("API_ID:", os.getenv("API_ID"))
+print("API_HASH:", os.getenv("API_HASH"))
+print("BOT_TOKEN:", os.getenv("BOT_TOKEN"))
 # ================= CONFIG =================
 API_ID = int(get_env("API_ID"))
 API_HASH = get_env("API_HASH")
@@ -103,3 +106,4 @@ try:
 except Exception:
     print("🔥 Bot crashed while running!")
     traceback.print_exc()
+
